@@ -69,6 +69,22 @@ impl Harness {
     }
 
     async fn upload(&self, user: &str, bytes: &[u8]) -> String {
+        let res = self.multipart(user, "/files", bytes).await;
+        assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+        let json: serde_json::Value = serde_json::from_str(&res.body).unwrap();
+        json["id"].as_str().unwrap().to_string()
+    }
+
+    /// Sets the user's avatar and returns its file id.
+    async fn set_avatar(&self, user: &str, bytes: &[u8]) -> String {
+        let res = self.multipart(user, "/settings/avatar", bytes).await;
+        assert_eq!(res.status, StatusCode::SEE_OTHER, "{}", res.body);
+        let page = self.get(Some(user), "/settings").await.body;
+        let at = page.find("src=\"/files/").expect("avatar on settings page") + "src=\"/files/".len();
+        page[at..at + 8].to_string()
+    }
+
+    async fn multipart(&self, user: &str, path: &str, bytes: &[u8]) -> Res {
         let boundary = "XBOUNDARYX";
         let mut body = format!(
             "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.png\"\r\nContent-Type: image/png\r\n\r\n"
@@ -76,14 +92,11 @@ impl Harness {
         .into_bytes();
         body.extend_from_slice(bytes);
         body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
-        let req = request("POST", Some(user), "/files")
+        let req = request("POST", Some(user), path)
             .header(header::CONTENT_TYPE, format!("multipart/form-data; boundary={boundary}"))
             .body(Body::from(body))
             .unwrap();
-        let res = self.send(req).await;
-        assert_eq!(res.status, StatusCode::OK, "{}", res.body);
-        let json: serde_json::Value = serde_json::from_str(&res.body).unwrap();
-        json["id"].as_str().unwrap().to_string()
+        self.send(req).await
     }
 }
 
@@ -293,4 +306,32 @@ async fn without_public_url() {
     assert!(page.contains(&format!("data-copy=\"{PUBLIC_URL}/p/{id}\"")));
     let private = h.create("max", "hush", "private").await;
     assert!(!h.get(Some("max"), &format!("/p/{private}")).await.body.contains("Copy public URL"));
+}
+
+#[tokio::test]
+async fn avatars_show_only_where_their_owner_does() {
+    let h = harness(PUBLIC_URL);
+    let first = h.set_avatar("max", &png()).await;
+    h.create("max", "only private so far", "private").await;
+    // max has nothing public, so his avatar (like his name) is unknown to others.
+    for user in [None, Some("anna")] {
+        assert_eq!(h.get(user, &format!("/files/{first}")).await.status, StatusCode::NOT_FOUND);
+    }
+    assert_eq!(h.get(None, "/settings").await.status, StatusCode::NOT_FOUND);
+
+    let public = h.create("max", "hello", "public").await;
+    assert_eq!(h.get(None, &format!("/files/{first}")).await.status, StatusCode::OK);
+    assert!(h.get(None, &format!("/p/{public}")).await.body.contains(&format!("/files/{first}")));
+    assert!(h.get(Some("anna"), "/explore").await.body.contains(&format!("/files/{first}")));
+
+    // Replacing it removes the old one; deleting a post that embeds the avatar keeps it.
+    let second = h.set_avatar("max", &png()).await;
+    assert_ne!(first, second);
+    assert_eq!(h.get(Some("max"), &format!("/files/{first}")).await.status, StatusCode::NOT_FOUND);
+    let embeds = h.create("max", &format!("![](/files/{second})"), "private").await;
+    assert_eq!(h.post_form(Some("max"), &format!("/p/{embeds}/delete"), "").await.status, StatusCode::SEE_OTHER);
+    assert_eq!(h.get(None, &format!("/files/{second}")).await.status, StatusCode::OK);
+
+    assert_eq!(h.post_form(Some("max"), "/settings/avatar/delete", "").await.status, StatusCode::SEE_OTHER);
+    assert_eq!(h.get(Some("max"), &format!("/files/{second}")).await.status, StatusCode::NOT_FOUND);
 }

@@ -64,6 +64,7 @@ Realm serves the app on two URLs: the private one behind Home's login (e.g. `htt
 - `/u/:name` a user's visible posts
 - `/t/:tag` posts with a tag, visibility-filtered
 - `/files/:id` uploads, behind the visibility check
+- `/settings` profile picture (signed-in only)
 - `/rss.xml`, `/sitemap.xml`, `/robots.txt`
 
 ## Posts
@@ -73,6 +74,16 @@ Realm serves the app on two URLs: the private one behind Home's login (e.g. `htt
 - Tags: `#` followed by letters, digits, `_` or `-` (Unicode letters allowed), with at least one letter (so "issue #1" isn't a tag), stored lowercase. A `#` inside code or a link doesn't make a tag.
 - Line breaks in a post are kept. Links keep only http(s), mailto and same-site paths. Only uploads render as images.
 - Post times are shown in `KVITTER_TZ` (an IANA name, default UTC).
+
+## Profile pictures
+
+- Optional, set on `/settings`; cropped to a 256 px square. Shown next to every post, the user's initial otherwise.
+- Visible exactly where the user's name is: to their owner, and to anyone who can see at least one of their posts.
+
+## Importing from memos
+
+- `kvitter import-memos MEMOS_DB --as USER`. Only memos that are public and not archived become public; everything else (private, protected, archived) becomes private. Original times are kept, attachments become uploads appended to the post.
+- Re-runnable: imported memos are recorded in `imports` and skipped, including ones deleted since.
 
 ## IDs
 

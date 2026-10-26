@@ -6,7 +6,7 @@ use maud::{DOCTYPE, Markup, PreEscaped, html};
 
 use crate::{
     AppState, auth,
-    db::{Post, Visibility},
+    db::{self, Post, Visibility},
     markdown::{self, RenderOpts, encode_path},
     statics,
     visibility::Viewer,
@@ -66,7 +66,7 @@ pub fn layout(state: &AppState, viewer: &Viewer, nav: Nav, head: Head, scripts: 
                                 a href="/" aria-current=[(nav == Nav::Mine).then_some("page")] { "Mine" }
                                 a href="/explore" aria-current=[(nav == Nav::Explore).then_some("page")] { "Explore" }
                                 a.who href={ "/u/" (encode_path(user)) } {
-                                    span.avatar aria-hidden="true" { (initial(user)) }
+                                    (avatar(user, db::avatar_of(&state.db(), user).ok().flatten().as_deref()))
                                     (user)
                                 }
                             } @else {
@@ -83,6 +83,17 @@ pub fn layout(state: &AppState, viewer: &Viewer, nav: Nav, head: Head, scripts: 
 
 fn initial(user: &str) -> String {
     user.chars().next().map(|c| c.to_uppercase().collect()).unwrap_or_default()
+}
+
+/// The user's picture, or their initial. Decorative: the name is always next to it or implied.
+pub fn avatar(user: &str, file: Option<&str>) -> Markup {
+    html! {
+        @if let Some(file) = file {
+            img.avatar src={ "/files/" (file) } alt="" aria-hidden="true";
+        } @else {
+            span.avatar aria-hidden="true" { (initial(user)) }
+        }
+    }
 }
 
 pub fn icon(name: &str) -> Markup {
@@ -135,12 +146,15 @@ pub fn post_item(state: &AppState, viewer: &Viewer, post: &Post, opts: &ItemOpts
     let own = viewer.owns(&post.author);
     html! {
         article.post {
-            div.meta {
-                @if opts.show_author { (author_link(viewer, &post.author)) }
-                a.when href={ "/p/" (post.public_id) } { (when(state, post.created_at, false)) }
-                @if own { (vis_pill(post.visibility)) }
+            (avatar(&post.author, post.avatar.as_deref()))
+            div.post-main {
+                div.meta {
+                    @if opts.show_author { (author_link(viewer, &post.author)) }
+                    a.when href={ "/p/" (post.public_id) } { (when(state, post.created_at, false)) }
+                    @if own { (vis_pill(post.visibility)) }
+                }
+                div.body { (body(viewer, &post.body)) }
             }
-            div.body { (body(viewer, &post.body)) }
         }
     }
 }
@@ -194,6 +208,7 @@ pub fn single_post(state: &AppState, viewer: &Viewer, post: &Post) -> Markup {
         @if viewer.is_signed_in() { a.back href="/" { "← Back to feed" } }
         article.single {
             div.meta {
+                (avatar(&post.author, post.avatar.as_deref()))
                 (author_link(viewer, &post.author))
                 a.when href={ "/p/" (post.public_id) } { (when(state, post.created_at, true)) }
                 @if own { (vis_pill(post.visibility)) }
@@ -258,6 +273,43 @@ pub fn page_head(title: Markup, sub: Option<String>) -> Markup {
         div.pagehead {
             h1 { (title) }
             @if let Some(s) = sub { p { (s) } }
+        }
+    }
+}
+
+/// The user page heading, with their picture and, on your own page, a way to change it.
+pub fn user_head(name: &str, file: Option<&str>, sub: String, own: bool) -> Markup {
+    html! {
+        div.pagehead.userhead {
+            (avatar(name, file))
+            div {
+                h1 { (name) }
+                p {
+                    (sub)
+                    @if own { " · " a href="/settings" { "Profile picture" } }
+                }
+            }
+        }
+    }
+}
+
+pub fn settings_page(user: &str, file: Option<&str>, error: Option<&str>) -> Markup {
+    html! {
+        (page_head(html! { "Profile picture" }, Some("Shown next to your posts, wherever they're visible.".into())))
+        div.settings {
+            (avatar(user, file))
+            div.settings-forms {
+                @if let Some(e) = error { p.error role="alert" { (e) } }
+                form method="post" action="/settings/avatar" enctype="multipart/form-data" {
+                    input type="file" name="file" accept="image/jpeg,image/png,image/webp" required aria-label="Picture";
+                    button.primary type="submit" { "Upload" }
+                }
+                @if file.is_some() {
+                    form method="post" action="/settings/avatar/delete" {
+                        button.btn type="submit" { "Remove picture" }
+                    }
+                }
+            }
         }
     }
 }

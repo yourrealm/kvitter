@@ -97,7 +97,7 @@ test("images upload stripped and resized, and follow the post's visibility", asy
   await max.locator("form.composer label.pub").click();
   await max.getByRole("button", { name: "Post publicly" }).click();
 
-  const img = max.locator("article.post").first().locator("img");
+  const img = max.locator("article.post").first().locator(".body img");
   await expect(img).toHaveAttribute("src", `/files/${fileId}`);
   await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
 
@@ -174,4 +174,19 @@ test("no horizontal scrolling", async ({ max, anon }) => {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow, path).toBeLessThanOrEqual(0);
   }
+});
+
+test("a profile picture shows next to your posts", async ({ max }) => {
+  const word = unique();
+  await compose(max, `with a face ${word}`);
+  await max.goto("/u/max");
+  await max.getByRole("link", { name: "Profile picture" }).click();
+  await expect(max).toHaveURL("/settings");
+  await max.getByLabel("Picture").setInputFiles("e2e/photo.png");
+  await max.getByRole("button", { name: "Upload" }).click();
+  await expect(max.getByRole("button", { name: "Remove picture" })).toBeVisible();
+
+  await max.goto("/");
+  const avatar = max.locator("article.post", { hasText: word }).locator("img.avatar");
+  await expect.poll(() => avatar.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(256);
 });

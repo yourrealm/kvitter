@@ -37,6 +37,8 @@ pub struct Post {
     pub visibility: Visibility,
     pub created_at: i64,
     pub updated_at: i64,
+    /// The author's avatar file, if they have one.
+    pub avatar: Option<String>,
 }
 
 impl Post {
@@ -54,6 +56,7 @@ impl Post {
             visibility: Visibility::parse(&vis).unwrap_or(Visibility::Private),
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
+            avatar: row.get("avatar")?,
         })
     }
 }
@@ -166,8 +169,21 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
              COMMIT;",
         )?;
     }
+    if version < 3 {
+        conn.execute_batch(
+            "BEGIN;
+             CREATE TABLE avatars (user TEXT PRIMARY KEY, file_id INTEGER NOT NULL REFERENCES files (id));
+             CREATE INDEX avatars_file ON avatars (file_id);
+             PRAGMA user_version = 3;
+             COMMIT;",
+        )?;
+    }
     Ok(())
 }
+
+/// Every post query selects these, so `Post::from_row` gets the author's avatar too.
+const POST_COLUMNS: &str =
+    "p.*, (SELECT af.public_id FROM avatars a JOIN files af ON af.id = a.file_id WHERE a.user = p.author) AS avatar";
 
 fn now() -> i64 {
     chrono::Utc::now().timestamp()
@@ -308,7 +324,8 @@ pub fn delete_post(conn: &mut Connection, viewer: &Viewer, public_id: &str) -> r
         .prepare(
             "SELECT f.id, f.name FROM files f JOIN post_files pf ON pf.file_id = f.id
              WHERE pf.post_id = ?1
-               AND NOT EXISTS (SELECT 1 FROM post_files o WHERE o.file_id = f.id AND o.post_id != ?1)",
+               AND NOT EXISTS (SELECT 1 FROM post_files o WHERE o.file_id = f.id AND o.post_id != ?1)
+               AND NOT EXISTS (SELECT 1 FROM avatars a WHERE a.file_id = f.id)",
         )?
         .query_map([post_id], |r| Ok((r.get(0)?, r.get(1)?)))?
         .collect::<Result<_, _>>()?;
@@ -325,7 +342,7 @@ pub fn get_post(conn: &Connection, viewer: &Viewer, public_id: &str) -> rusqlite
     let mut params = vec![Value::Text(public_id.to_string())];
     params.extend(f.params);
     conn.query_row(
-        &format!("SELECT p.* FROM posts p WHERE p.public_id = ? AND {}", f.sql),
+        &format!("SELECT {POST_COLUMNS} FROM posts p WHERE p.public_id = ? AND {}", f.sql),
         params_from_iter(params),
         Post::from_row,
     )
@@ -357,7 +374,7 @@ pub fn list_posts(
 ) -> rusqlite::Result<Vec<Post>> {
     let f = visibility::posts(viewer, "p");
     let (scope_sql, scope_params) = scope_condition(viewer, scope);
-    let mut sql = format!("SELECT p.* FROM posts p WHERE {} AND {scope_sql}", f.sql);
+    let mut sql = format!("SELECT {POST_COLUMNS} FROM posts p WHERE {} AND {scope_sql}", f.sql);
     let mut params = f.params;
     params.extend(scope_params);
     if let Some(c) = before {
@@ -414,6 +431,50 @@ pub fn create_file(conn: &Connection, owner: &str, ext: &str, content_type: &str
         )?;
         Ok(id.to_string())
     })
+}
+
+/// The viewer's own avatar, for the header.
+pub fn avatar_of(conn: &Connection, user: &str) -> rusqlite::Result<Option<String>> {
+    conn.query_row(
+        "SELECT f.public_id FROM avatars a JOIN files f ON f.id = a.file_id WHERE a.user = ?",
+        [user],
+        |r| r.get(0),
+    )
+    .optional()
+}
+
+/// Sets (or with `None`, removes) the user's avatar to one of their files. Returns the file
+/// name of the previous avatar when nothing else uses it, for removal from disk.
+pub fn set_avatar(conn: &mut Connection, user: &str, file: Option<&str>) -> rusqlite::Result<Option<String>> {
+    let tx = conn.transaction()?;
+    let old: Option<(i64, String)> = tx
+        .query_row(
+            "SELECT f.id, f.name FROM avatars a JOIN files f ON f.id = a.file_id WHERE a.user = ?",
+            [user],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?;
+    tx.execute("DELETE FROM avatars WHERE user = ?", [user])?;
+    if let Some(file) = file {
+        tx.execute(
+            "INSERT INTO avatars (user, file_id) SELECT ?1, id FROM files WHERE public_id = ?2 AND owner = ?1",
+            params![user, file],
+        )?;
+    }
+    let mut removed = None;
+    if let Some((id, name)) = old {
+        let used: bool = tx.query_row(
+            "SELECT EXISTS (SELECT 1 FROM post_files WHERE file_id = ?1) OR EXISTS (SELECT 1 FROM avatars WHERE file_id = ?1)",
+            [id],
+            |r| r.get(0),
+        )?;
+        if !used {
+            tx.execute("DELETE FROM files WHERE id = ?", [id])?;
+            removed = Some(name);
+        }
+    }
+    tx.commit()?;
+    Ok(removed)
 }
 
 pub fn get_file(conn: &Connection, viewer: &Viewer, public_id: &str) -> rusqlite::Result<Option<StoredFile>> {

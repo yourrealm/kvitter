@@ -6,6 +6,7 @@ use std::io::Cursor;
 use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader, Limits, codecs::jpeg::JpegEncoder, imageops::FilterType};
 
 const MAX_SIDE: u32 = 2048;
+const AVATAR_SIDE: u32 = 256;
 
 pub struct Processed {
     pub bytes: Vec<u8>,
@@ -14,6 +15,20 @@ pub struct Processed {
 }
 
 pub fn process(input: &[u8]) -> Result<Processed, String> {
+    let mut img = decode(input)?;
+    if img.width() > MAX_SIDE || img.height() > MAX_SIDE {
+        img = img.resize(MAX_SIDE, MAX_SIDE, FilterType::Lanczos3);
+    }
+    encode(&img)
+}
+
+/// Profile pictures: cropped to the centre square and scaled to 256 px.
+pub fn avatar(input: &[u8]) -> Result<Processed, String> {
+    let img = decode(input)?;
+    encode(&img.resize_to_fill(AVATAR_SIDE, AVATAR_SIDE, FilterType::Lanczos3))
+}
+
+fn decode(input: &[u8]) -> Result<DynamicImage, String> {
     let reader = ImageReader::new(Cursor::new(input)).with_guessed_format().map_err(|e| e.to_string())?;
     match reader.format() {
         Some(ImageFormat::Jpeg | ImageFormat::Png | ImageFormat::WebP) => {}
@@ -28,11 +43,10 @@ pub fn process(input: &[u8]) -> Result<Processed, String> {
     let orientation = decoder.orientation().map_err(|e| e.to_string())?;
     let mut img = DynamicImage::from_decoder(decoder).map_err(|e| format!("Couldn't read the image: {e}"))?;
     img.apply_orientation(orientation);
+    Ok(img)
+}
 
-    if img.width() > MAX_SIDE || img.height() > MAX_SIDE {
-        img = img.resize(MAX_SIDE, MAX_SIDE, FilterType::Lanczos3);
-    }
-
+fn encode(img: &DynamicImage) -> Result<Processed, String> {
     let mut bytes = Vec::new();
     if img.color().has_alpha() {
         img.write_to(&mut Cursor::new(&mut bytes), ImageFormat::Png).map_err(|e| e.to_string())?;
@@ -76,6 +90,13 @@ mod tests {
         assert!(!out.bytes.windows(10).any(|w| w == b"GPS-SECRET"));
         let decoded = image::load_from_memory(&out.bytes).unwrap();
         assert_eq!((decoded.width(), decoded.height()), (2048, 683));
+    }
+
+    #[test]
+    fn avatars_are_square() {
+        let out = avatar(&jpeg(900, 300)).unwrap();
+        let decoded = image::load_from_memory(&out.bytes).unwrap();
+        assert_eq!((decoded.width(), decoded.height()), (256, 256));
     }
 
     #[test]

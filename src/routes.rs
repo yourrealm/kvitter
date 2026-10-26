@@ -206,10 +206,7 @@ pub async fn delete(State(state): State<AppState>, Extension(viewer): Extension<
     let removed = if ids::is_valid(&id) { db::delete_post(&mut state.db(), &viewer, &id)? } else { None };
     let Some(removed) = removed else { return Ok(not_found(&state, &viewer)) };
     for name in removed {
-        let path = state.config.uploads_dir.join(&name);
-        if let Err(e) = std::fs::remove_file(&path) {
-            eprintln!("couldn't remove {}: {e}", path.display());
-        }
+        remove_upload(&state, Some(name));
     }
     Ok(Redirect::to("/").into_response())
 }
@@ -234,8 +231,9 @@ pub async fn user_page(
     } else {
         format!("{} public", plural(counts.total, "post"))
     };
+    let avatar = db::avatar_of(&state.db(), &name)?;
     let content = html! {
-        (views::page_head(html! { (name) }, Some(sub)))
+        (views::user_head(&name, avatar.as_deref(), sub, own))
         (views::posts_list(&state, &viewer, &posts, &ItemOpts { show_author: false }, older, "No posts yet."))
     };
     Ok(views::layout(&state, &viewer, Nav::None, Head::titled(format!("{name} · kvitter")), &["app.js"], content).into_response())
@@ -304,6 +302,56 @@ pub async fn upload(State(state): State<AppState>, Extension(viewer): Extension<
         "markdown": format!("![](/files/{id})"),
     }))
     .into_response())
+}
+
+fn settings(state: &AppState, viewer: &Viewer, user: &str, error: Option<&str>) -> Result {
+    let avatar = db::avatar_of(&state.db(), user)?;
+    let content = views::settings_page(user, avatar.as_deref(), error);
+    let page = views::layout(state, viewer, Nav::None, Head::titled("Profile picture · kvitter"), &[], content);
+    let status = if error.is_some() { StatusCode::UNPROCESSABLE_ENTITY } else { StatusCode::OK };
+    Ok((status, page).into_response())
+}
+
+pub async fn settings_page(State(state): State<AppState>, Extension(viewer): Extension<Viewer>) -> Result {
+    let Some(user) = viewer.user() else { return Ok(not_found(&state, &viewer)) };
+    settings(&state, &viewer, user, None)
+}
+
+pub async fn set_avatar(State(state): State<AppState>, Extension(viewer): Extension<Viewer>, mut multipart: Multipart) -> Result {
+    let Some(user) = viewer.user() else { return Ok(not_found(&state, &viewer)) };
+    let mut data = None;
+    while let Some(field) = multipart.next_field().await.map_err(|e| e.body_text())? {
+        if field.name() == Some("file") {
+            data = Some(field.bytes().await.map_err(|e| e.body_text())?);
+        }
+    }
+    let Some(data) = data.filter(|d| !d.is_empty()) else { return settings(&state, &viewer, user, Some("Choose a picture first.")) };
+    let processed = match tokio::task::spawn_blocking(move || images::avatar(&data)).await? {
+        Ok(p) => p,
+        Err(e) => return settings(&state, &viewer, user, Some(&e)),
+    };
+    let id = db::create_file(&state.db(), user, processed.ext, processed.content_type)?;
+    let path = state.config.uploads_dir.join(format!("{id}.{}", processed.ext));
+    tokio::task::spawn_blocking(move || std::fs::write(path, processed.bytes)).await??;
+    let old = db::set_avatar(&mut state.db(), user, Some(&id))?;
+    remove_upload(&state, old);
+    Ok(Redirect::to("/settings").into_response())
+}
+
+pub async fn remove_avatar(State(state): State<AppState>, Extension(viewer): Extension<Viewer>) -> Result {
+    let Some(user) = viewer.user() else { return Ok(not_found(&state, &viewer)) };
+    let old = db::set_avatar(&mut state.db(), user, None)?;
+    remove_upload(&state, old);
+    Ok(Redirect::to("/settings").into_response())
+}
+
+fn remove_upload(state: &AppState, name: Option<String>) {
+    if let Some(name) = name {
+        let path = state.config.uploads_dir.join(&name);
+        if let Err(e) = std::fs::remove_file(&path) {
+            eprintln!("couldn't remove {}: {e}", path.display());
+        }
+    }
 }
 
 pub async fn serve_file(
