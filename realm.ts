@@ -11,7 +11,7 @@ export default createApp({
   configSchema: {
     domain: r.home.publicDomain().reason("Serve public posts on their own domain").optional(),
     timezone: r.input.text().title("Time zone")
-      .describe("IANA name such as Europe/Oslo, for post times. Empty means UTC."),
+      .describe("IANA name such as Europe/Stockholm, for post times. Empty means UTC."),
   },
 
   getTrustedHeaders: (user) => ({

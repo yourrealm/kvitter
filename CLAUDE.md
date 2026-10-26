@@ -27,7 +27,7 @@ Realm recipe (needs Deno; `realm-sdk` isn't installed here yet): `realm-sdk vali
 
 ### Local dev
 
-There's no Realm locally. `kvitter serve --dev-user max` (what `pnpm dev` runs) signs every request in as `max`, **except** on hosts starting with `public.`, which are anonymous. So `http://localhost:3000` is the private URL and `http://public.localhost:3000` is the public domain. Other users: send `X-Kvitter-User` + `X-Kvitter-Proof` with `KVITTER_PROOF` set and no `--dev-user`, as the e2e fixtures do.
+There's no Realm locally. `kvitter serve --dev-user benjick` (what `pnpm dev` runs) signs every request in as `benjick`, **except** on hosts starting with `public.`, which are anonymous. So `http://localhost:3000` is the private URL and `http://public.localhost:3000` is the public domain. Other users: send `X-Kvitter-User` + `X-Kvitter-Proof` with `KVITTER_PROOF` set and no `--dev-user`, as the e2e fixtures do.
 
 Env: `PUBLIC_URL`, `KVITTER_PROOF`, `KVITTER_TZ` (IANA, default UTC), `DATA_DIR` (/data), `UPLOADS_DIR` (/uploads), `PORT` (3000).
 
