@@ -1,0 +1,9 @@
+/target
+/node_modules
+# Local data, including imported private posts
+.data/
+/e2e/.data
+/test-results
+/playwright-report
+# Built by `pnpm build:web` (and in the Dockerfile)
+/static/composer.js

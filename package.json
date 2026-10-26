@@ -1,0 +1,21 @@
+{
+  "name": "kvitter",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:web": "esbuild web/composer.js --bundle --minify --format=iife --target=es2020 --outfile=static/composer.js",
+    "test:e2e": "playwright test",
+    "dev": "pnpm build:web && PUBLIC_URL=http://public.localhost:3000 DATA_DIR=.data UPLOADS_DIR=.data/uploads cargo run -- serve --dev-user max"
+  },
+  "devDependencies": {
+    "@codemirror/autocomplete": "^6.20.4",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@lezer/highlight": "^1.2.5",
+    "@lezer/markdown": "^1.8.1",
+    "@playwright/test": "^1.64.1",
+    "esbuild": "^0.28.2"
+  }
+}
