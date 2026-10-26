@@ -13,7 +13,7 @@ Kvitter is a [Realm](https://yourrealm.eu) micro app: Realm signs you in and ser
 
 ## Install on Realm
 
-Install it from [`realm.ts`](realm.ts). It runs `ghcr.io/benjick/kvitter:latest`, which CI publishes on every push to `main`.
+Install it from [`realm.ts`](realm.ts). It runs `ghcr.io/yourrealm/kvitter:latest`, which CI publishes on every push to `main`.
 
 Settings:
 
@@ -35,7 +35,7 @@ docker run -p 3000:3000 \
   -e PUBLIC_URL=https://posts.example.com \
   -e KVITTER_TZ=Europe/Stockholm \
   -v kvitter-data:/data -v kvitter-uploads:/uploads \
-  ghcr.io/benjick/kvitter:latest
+  ghcr.io/yourrealm/kvitter:latest
 ```
 
 `PUBLIC_URL` is your public domain, used for share links, RSS and the sitemap. The database lives in `/data` and images in `/uploads`.

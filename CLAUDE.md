@@ -23,7 +23,7 @@ docker build -t kvitter .      # the image CI publishes (keep it kaniko-compatib
 
 `static/composer.js` is embedded with `include_bytes!`, so `cargo build` fails until `pnpm build:web` has run once.
 
-Realm recipe (needs Deno; `realm-sdk` isn't installed here yet): `realm-sdk validate realm.ts`. Deploy: `.github/workflows/ci.yml` tests every push and, on `main`, publishes `ghcr.io/benjick/kvitter:latest` (amd64) with an OCI version label; Realm pins the digest at install and offers newer ones as updates. CI runs clippy with `-D warnings`.
+Realm recipe (needs Deno; `realm-sdk` isn't installed here yet): `realm-sdk validate realm.ts`. Deploy: `.github/workflows/ci.yml` tests every push and, on `main`, publishes `ghcr.io/yourrealm/kvitter:latest` (amd64) with an OCI version label; Realm pins the digest at install and offers newer ones as updates. CI runs clippy with `-D warnings`.
 
 ### Local dev
 
