@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-`brief.md` is the product spec; read it before design decisions. Realm platform docs: https://yourrealm.eu/docs/microapps/ and `/docs/realm-ts/*`.
+`README.md` describes Kvitter for users. Realm platform docs: https://yourrealm.eu/docs/microapps/ and `/docs/realm-ts/*`.
 
 ## What Kvitter is
 
@@ -18,16 +18,16 @@ cargo test                     # unit tests + tests/http.rs (leak tests through 
 cargo test --test http private_posts_do_not_leak   # a single test
 pnpm test:e2e                  # Playwright: builds, starts its own server on :3100, desktop + phone
 pnpm test:e2e -g "edit and delete" --project desktop
-docker build -t kvitter .      # the image Forge builds (kaniko: no BuildKit-only features)
+docker build -t kvitter .      # the image CI publishes (keep it kaniko-compatible for Forge)
 ```
 
 `static/composer.js` is embedded with `include_bytes!`, so `cargo build` fails until `pnpm build:web` has run once.
 
-Realm recipe (needs Deno; `realm-sdk` isn't installed here yet): `realm-sdk validate realm.ts`. Deploy: Forge builds the repo/branch bound on its page on every push.
+Realm recipe (needs Deno; `realm-sdk` isn't installed here yet): `realm-sdk validate realm.ts`. Deploy: `.github/workflows/ci.yml` tests every push and, on `main`, publishes `ghcr.io/benjick/kvitter:latest` (amd64) with an OCI version label; Realm pins the digest at install and offers newer ones as updates. CI runs clippy with `-D warnings`.
 
 ### Local dev
 
-There's no Realm locally. `kvitter serve --dev-user benjick` (what `pnpm dev` runs) signs every request in as `benjick`, **except** on hosts starting with `public.`, which are anonymous. So `http://localhost:3000` is the private URL and `http://public.localhost:3000` is the public domain. Other users: send `X-Kvitter-User` + `X-Kvitter-Proof` with `KVITTER_PROOF` set and no `--dev-user`, as the e2e fixtures do.
+There's no Realm locally. `kvitter serve --dev-user dev` (what `pnpm dev` runs) signs every request in as `dev`, **except** on hosts starting with `public.`, which are anonymous. So `http://localhost:3000` is the private URL and `http://public.localhost:3000` is the public domain. Other users: send `X-Kvitter-User` + `X-Kvitter-Proof` with `KVITTER_PROOF` set and no `--dev-user`, as the e2e fixtures do.
 
 Env: `PUBLIC_URL`, `KVITTER_PROOF`, `KVITTER_TZ` (IANA, default UTC), `DATA_DIR` (/data), `UPLOADS_DIR` (/uploads), `PORT` (3000).
 
@@ -43,7 +43,19 @@ Request flow: `auth::identify` (middleware on every route) → handler in `route
 - `import.rs`: `kvitter import-memos` from a usememos SQLite file. It must never print memo content (most memos are private): counts and memo uids only.
 - `feeds.rs`: RSS/sitemap always query as `Viewer::Anonymous`, and 404 without `PUBLIC_URL`.
 
-Privacy rules worth remembering (full list in `brief.md` under "No leaks"): a private post and a missing one return the identical 404; a user with no posts visible to you is a 404; `PUBLIC_URL` is never redirected to and never replaced by the private URL; og/canonical tags only on public posts.
+## Privacy rules
+
+These are the product's promises; the tests in `tests/http.rs` cover each one.
+
+- New posts default to private. Signed in, `/` is your own posts; others' public posts are on `/explore`.
+- A private post and a missing one return the identical 404. A user with no posts visible to you is a 404.
+- Tags, tag counts, autocomplete, tag pages and feeds only count posts the viewer can see. RSS, sitemap and og/canonical tags only ever contain public posts, with `PUBLIC_URL` links.
+- A file is served only through the visibility check (unguessable ids are not the check). Flipping a post to private hides its files immediately. Uploads are re-encoded, which strips EXIF/GPS.
+- Signed-in pages are `Cache-Control: private, no-store`; anonymous pages may be cached 60 s; files are `public, no-cache` with an ETag.
+- `PUBLIC_URL` is never redirected to and never replaced by the private URL; without it, Copy public URL is hidden and rss/sitemap 404. The app decides read-only by identity, never by Host.
+- Anonymous requests get only `/explore`, `/p/:id`, `/files/:id`, `/rss.xml`, `/sitemap.xml`, `/robots.txt`, `/static/*` and `/healthz`; `/` redirects to `/explore`.
+- Ids are random (never sequential, which would reveal how many private posts exist), 8 chars from a 31-char alphabet, so an "unlisted" visibility stays safe to add later.
+- Raw HTML in posts is escaped; links keep only http(s), mailto and same-site paths; only uploads render as images.
 
 ## Tests
 

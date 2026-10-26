@@ -22,7 +22,8 @@ export default createApp({
   getDesiredState: ({ config }) => ({
     services: {
       web: {
-        build: {},
+        // Published by CI on every green push to main. To build from source on Forge instead, use `build: {}`.
+        image: "ghcr.io/benjick/kvitter:latest",
         router: {
           containerPort: 3000,
           publicDomain: config.domain,

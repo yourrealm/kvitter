@@ -1,4 +1,5 @@
-# Forge builds this with kaniko: no BuildKit-only features (cache mounts etc.).
+# CI builds this and pushes it to GHCR. Keep it a plain multi-stage build (no BuildKit-only
+# features such as cache mounts) so Forge, which builds with kaniko, can build it too.
 
 FROM node:24-alpine AS web
 WORKDIR /src
