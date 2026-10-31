@@ -5,7 +5,7 @@ const proof = r.stableSecret("home-proof");
 
 export default createApp({
   name: "kvitter",
-  icon: "ph:bird",
+  icon: "ph:bird:blue",
   description: "Short posts, public or private.",
 
   configSchema: {
