@@ -1,5 +1,5 @@
 //! HTML pages, in the "Notebook" direction: serif posts, sans chrome, mono timestamps,
-//! hairline rules and one ink-blue accent that also marks what is public.
+//! hairline rules, one ink-blue accent, and green for what is public.
 
 use chrono::{DateTime, Datelike, Duration, TimeZone, Utc};
 use maud::{DOCTYPE, Markup, PreEscaped, html};
@@ -132,7 +132,10 @@ pub fn composer(action: &str, body: &str, visibility: Visibility, submit: &str, 
                     label { input type="radio" name="visibility" value="private" checked[!public]; (icon("lock")) "Private" }
                     label.pub { input type="radio" name="visibility" value="public" checked[public]; (icon("globe")) "Public" }
                 }
-                button.primary type="submit" data-submit=(submit) { (submit) }
+                button.primary type="submit" data-submit=(submit) {
+                    @if submit != "Save" { (icon(if public { "globe" } else { "lock" })) }
+                    span { (submit) }
+                }
             }
         }
     }

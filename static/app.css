@@ -1,4 +1,4 @@
-/* Notebook: serif posts, sans chrome, mono timestamps, hairline rules, one ink-blue accent. */
+/* Notebook: serif posts, sans chrome, mono timestamps, hairline rules, one ink-blue accent; green marks what is public. */
 :root {
   --paper: #fbfcfb;
   --ink: #1c211f;
@@ -9,6 +9,12 @@
   --accent: #33598a;
   --accent-soft: #e3eaf3;
   --danger: #a3372f;
+  --public: #067a35;
+  --public-soft: #dcfce7;
+  --neon: #3dfc7f;
+  --neon-ink: #053a1b;
+  --neon-edge: #22e36a;
+  --neon-glow: rgb(61 252 127 / 0.55);
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --serif: Charter, "Bitstream Charter", "Iowan Old Style", "Sitka Text", Cambria, Georgia, serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
@@ -18,6 +24,8 @@
   :root {
     --paper: #171a19; --ink: #e2e6e3; --muted: #959e98; --faint: #6b746f; --rule: #2a2f2d;
     --fill: #202523; --accent: #93b2de; --accent-soft: #23303f; --danger: #e08a82;
+    --public: #5dff9a; --public-soft: #12301f;
+    --neon-ink: #032b13; --neon-edge: #2ee86f; --neon-glow: rgb(61 252 127 / 0.45);
     color-scheme: dark;
   }
 }
@@ -48,6 +56,7 @@ img.avatar { object-fit: cover; background: var(--fill) }
 /* composer */
 .composer { border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); margin-bottom: 8px }
 .composer:focus-within { border-color: var(--faint) }
+.composer:has(input[value="public"]:checked) { border-color: var(--neon-edge) }
 .composer textarea { display: block; width: 100%; border: 0; background: none; resize: vertical; font-family: var(--serif); font-size: 16.5px; line-height: 1.6; padding: 12px 14px 8px; min-height: 5.5em; color: var(--ink); outline: none }
 .composer .error { margin: 0; padding: 8px 14px 0; color: var(--danger); font-size: 13.5px }
 .cbar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--rule); flex-wrap: wrap }
@@ -58,7 +67,9 @@ img.avatar { object-fit: cover; background: var(--fill) }
 .hint { font-size: 12px; color: var(--faint) }
 @media (max-width: 480px) { .hint { display: none } }
 .cbar .primary { margin-left: auto }
-.primary { border: 0; background: var(--ink); color: var(--paper); border-radius: 7px; padding: 6px 13px; font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap }
+.primary { border: 0; background: var(--ink); color: var(--paper); border-radius: 7px; padding: 6px 13px; font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; display: inline-flex; align-items: center; gap: 6px; transition: background-color .15s, color .15s, box-shadow .15s }
+.composer:has(input[value="public"]:checked) .primary { background: var(--neon); color: var(--neon-ink); box-shadow: 0 0 0 1px var(--neon-edge), 0 0 14px var(--neon-glow) }
+@media (prefers-reduced-motion: reduce) { .primary { transition: none } }
 
 /* CodeMirror, styled like the textarea it replaces */
 .cm-editor { font-family: var(--serif); font-size: 16.5px; line-height: 1.6; color: var(--ink) }
@@ -84,7 +95,7 @@ img.avatar { object-fit: cover; background: var(--fill) }
 .seg label, .seg button { border: 0; background: none; padding: 3px 9px; border-radius: 5px; font-size: 13.5px; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; cursor: pointer }
 .seg input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none }
 .seg label:has(input:checked), .seg button[aria-pressed="true"] { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--rule) }
-.seg label.pub:has(input:checked), .seg button.pub[aria-pressed="true"] { color: var(--accent) }
+.seg label.pub:has(input:checked), .seg button.pub[aria-pressed="true"] { color: var(--public) }
 .seg label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px }
 
 /* posts */
@@ -100,7 +111,7 @@ img.avatar { object-fit: cover; background: var(--fill) }
 .meta .author { color: var(--ink); font-weight: 600; text-decoration: none }
 .vis { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; border-radius: 999px; padding: 1px 8px 1px 6px }
 .vis.priv { color: var(--muted); background: var(--fill) }
-.vis.pub { color: var(--accent); background: var(--accent-soft) }
+.vis.pub { color: var(--public); background: var(--public-soft) }
 .body { font-family: var(--serif); font-size: 16.5px; line-height: 1.55; overflow-wrap: anywhere; min-width: 0 }
 .body > :first-child { margin-top: 0 }
 .body > :last-child { margin-bottom: 0 }
